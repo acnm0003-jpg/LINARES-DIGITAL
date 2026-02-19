@@ -3,7 +3,8 @@ pandas
 plotly
 numpy
 fpdf
-google-generativeai>=0.3.0
+google-generativeai>=0.7.2
+
 
 
 
