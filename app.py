@@ -35,7 +35,7 @@ def generar_analisis_ia(sector, tamano, debilidad, fortaleza, nivel_global):
     try:
         # 2. Configurar Google Gemini
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-1.5-flash') # Modelo rápido y gratis
+        model = genai.GenerativeModel('gemini-pro') # Modelo rápido y gratis
         
         # 3. El Prompt (Instrucciones)
         prompt = f"""
@@ -191,5 +191,6 @@ if st.button("🚀 ANALIZAR CON INTELIGENCIA ARTIFICIAL", type="primary"):
     b64 = base64.b64encode(pdf_bytes).decode()
     href = f'<a href="data:application/octet-stream;base64,{b64}" download="Informe_Digital_{nombre_empresa}.pdf" style="text-decoration:none; color:white; background-color:red; padding:10px; border-radius:5px;">📄 DESCARGAR PDF</a>'
     st.markdown(href, unsafe_allow_html=True)
+
 
 
