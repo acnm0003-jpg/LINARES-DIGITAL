@@ -4,6 +4,7 @@ import numpy as np
 from fpdf import FPDF
 import base64
 from datetime import date
+import google.generativeai as genai
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Linares-Digital", page_icon="🏭", layout="wide")
@@ -16,225 +17,179 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- CONFIGURACIÓN DE IA (OPENAI) ---
-import openai
-
-def generar_recomendaciones_ia(api_key, sector, tamano, debilidad, fortaleza, nivel_global):
-    """Genera recomendaciones usando GPT si hay API Key, sino usa lógica experta."""
+# --- FUNCIÓN DE IA (GOOGLE GEMINI - GRATIS) ---
+def generar_analisis_ia(sector, tamano, debilidad, fortaleza, nivel_global):
+    # 1. Obtener API Key de los secretos
+    api_key = st.secrets.get("GOOGLE_API_KEY", None)
     
     if not api_key:
-        return f"""
-        **[MODO SIMULACIÓN - EXPERTO VIRTUAL]**
+        return """
+        ⚠️ **AVISO:** No se ha configurado la API Key de Google.
         
-        **Diagnóstico para {sector} ({tamano}):**
-        
-        1. **Punto Crítico ({debilidad}):** Detectamos un cuello de botella aquí.
-           - *Acción:* Implementar un protocolo de digitalización básico en esta área antes de 3 meses.
-           - *Beneficio:* Reducción de costes operativos estimada en un 15%.
-           
-        2. **Potenciar Fortaleza ({fortaleza}):** Tu empresa destaca aquí.
-           - *Acción:* Utilizar esta fortaleza como palanca para digitalizar el resto.
-           - *Beneficio:* Liderazgo en el mercado local de Linares.
-           
-        *(Para recomendaciones generadas por IA en tiempo real, introduzca una API Key válida).*
+        **Modo Simulación (Sin IA):**
+        - El sistema detecta que tu debilidad es **""" + debilidad + """**.
+        - Se recomienda revisar los procesos manuales.
+        *(Configura el secreto GOOGLE_API_KEY para análisis real)*
         """
     
     try:
-        client = openai.OpenAI(api_key=api_key)
+        # 2. Configurar Google Gemini
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-1.5-flash') # Modelo rápido y gratis
+        
+        # 3. El Prompt (Instrucciones)
         prompt = f"""
-        Actúa como un consultor experto en Transformación Digital para PYMEs industriales.
-        Contexto: Empresa de Linares (España), Sector: {sector}, Tamaño: {tamano}.
-        Nivel de Madurez Global: {nivel_global}/5.
+        Actúa como un Consultor Estratégico de Industria 4.0 especializado en reindustrialización.
         
-        Su mayor Fortaleza es: {fortaleza}.
-        Su mayor Debilidad es: {debilidad}.
+        Analiza esta empresa real de Linares (España):
+        - Sector: {sector}
+        - Tamaño: {tamano}
+        - Nivel Madurez: {nivel_global:.2f}/5
+        - Su Punto Fuerte es: {fortaleza}
+        - Su Punto Débil Crítico es: {debilidad}
+
+        Genera un informe estratégico breve con estas 3 secciones (usa estos iconos):
+
+        1. 🔮 PREDICCIÓN DE ESCENARIOS (Riesgo y Oportunidad):
+           - Predice un riesgo concreto a 1 año si no mejoran en '{debilidad}'.
+           - Estima el impacto positivo (ej. % ahorro o eficiencia) si mejoran esa área.
+
+        2. 🚀 HOJA DE RUTA (Acciones Inmediatas):
+           - Dame 3 pasos muy concretos, baratos y aplicables mañana mismo para mejorar '{debilidad}'.
+           - No digas generalidades, da nombres de herramientas o metodologías concretas.
+
+        3. 💡 VENTAJA COMPETITIVA:
+           - Una frase inspiradora sobre cómo usar su fortaleza en '{fortaleza}' para destacar en la región.
         
-        Genera una respuesta con este formato exacto:
-        1. ANÁLISIS DE SITUACIÓN: Breve explicación de por qué su debilidad en {debilidad} es peligrosa.
-        2. PLAN DE ACCIÓN (3 Pasos): Acciones concretas, baratas y rápidas para mejorar {debilidad}.
-        3. BENEFICIO ESPERADO: Qué ganará la empresa (en euros o tiempo) si lo hace.
-        
-        Tono: Profesional, motivador y directo.
+        Responde en español profesional. Sé directo.
         """
         
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.7
-        )
-        return response.choices[0].message.content
+        # 4. Generar respuesta
+        response = model.generate_content(prompt)
+        return response.text
+        
     except Exception as e:
-        return f"Error al conectar con la IA: {e}"
+        return f"❌ Error conectando con Google Gemini: {e}"
 
 # --- FUNCIÓN GENERAR PDF ---
-def crear_pdf(nombre_empresa, nmg, fortaleza, debilidad, recomendaciones, radar_chart_bytes):
+def crear_pdf(nombre_empresa, nmg, fortaleza, debilidad, recomendaciones):
     pdf = FPDF()
     pdf.add_page()
     
-    # Cabecera
+    # Intentamos usar una fuente estándar para evitar errores de caracteres
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, f"Informe de Madurez Digital: {nombre_empresa}", ln=True, align='C')
+    pdf.cell(0, 10, f"Informe Madurez: {nombre_empresa}", ln=True, align='C')
     pdf.ln(10)
     
-    # Datos Generales
     pdf.set_font("Arial", '', 12)
     pdf.cell(0, 10, f"Fecha: {date.today()}", ln=True)
-    pdf.cell(0, 10, f"Nivel Global (NMG): {nmg:.2f} / 5.0", ln=True)
+    pdf.cell(0, 10, f"Nivel Global: {nmg:.2f} / 5.0", ln=True)
+    
+    pdf.set_text_color(0, 100, 0)
+    pdf.cell(0, 10, f"Fortaleza: {fortaleza}", ln=True)
+    pdf.set_text_color(200, 0, 0)
+    pdf.cell(0, 10, f"Debilidad: {debilidad}", ln=True)
+    pdf.set_text_color(0, 0, 0)
     pdf.ln(5)
     
-    # Fortalezas y Debilidades
-    pdf.set_font("Arial", 'B', 12)
-    pdf.set_text_color(0, 100, 0)
-    pdf.cell(0, 10, f"Punto Fuerte: {fortaleza}", ln=True)
-    pdf.set_text_color(200, 0, 0)
-    pdf.cell(0, 10, f"Punto de Mejora: {debilidad}", ln=True)
-    pdf.set_text_color(0, 0, 0)
-    pdf.ln(10)
-    
-    # Recomendaciones (limpiamos el texto para evitar caracteres raros en PDF básicos)
-    pdf.set_font("Arial", 'B', 14)
-    pdf.cell(0, 10, "Hoja de Ruta Recomendada:", ln=True)
-    pdf.set_font("Arial", '', 11)
-    
-    # Multi-cell para texto largo
-    recomendaciones_limpias = recomendaciones.replace("**", "").replace("*", "")
-    pdf.multi_cell(0, 7, recomendaciones_limpias)
+    pdf.set_font("Arial", '', 10)
+    # Limpieza básica de texto para PDF (quitamos negritas markdown)
+    texto_limpio = recomendaciones.replace("**", "").replace("#", "")
+    # Codificación para evitar errores con tildes (latin-1 suele ir bien)
+    pdf.multi_cell(0, 6, texto_limpio.encode('latin-1', 'replace').decode('latin-1'))
     
     return pdf.output(dest='S').encode('latin-1')
 
 # --- INTERFAZ PRINCIPAL ---
-st.title("🏭 Diagnóstico Linares-Digital 4.0")
-st.markdown("Herramienta avanzada de autodiagnóstico y hoja de ruta para la reindustrialización de PYMEs.")
+st.title("🏭 Diagnóstico Linares-Digital 4.0 (IA Powered)")
+st.markdown("Sistema inteligente de autodiagnóstico para la reindustrialización de PYMEs.")
 
 # Sidebar
 with st.sidebar:
-    st.header("Configuración")
-    nombre_empresa = st.text_input("Nombre de la Empresa", "Mi Empresa S.L.")
+    st.header("Datos de la Empresa")
+    nombre_empresa = st.text_input("Nombre Comercial", "Mi Empresa S.L.")
     sector = st.selectbox("Sector", ["Industria Metalmecánica", "Automoción/Auxiliar", "Comercio/Retail", "Servicios", "Agroalimentario"])
     tamano = st.selectbox("Tamaño", ["Micro (<10 empl.)", "Pequeña (10-49)", "Mediana (50-250)"])
-    
-    st.divider()
-    st.markdown("### 🧠 Motor de IA")
-    api_key = st.text_input("OpenAI API Key (Opcional)", type="password", help="Si no introduces clave, se usará el sistema experto basado en reglas.")
-    
-# --- PESOS AHP (Definidos en el TFM) ---
+    st.info("ℹ️ Este sistema utiliza Inteligencia Artificial de Google (Gemini) para generar las predicciones.")
+
+# --- PESOS AHP ---
 PESOS = {
-    "Estrategia": 0.30,
-    "Cultura": 0.25,
-    "Operaciones": 0.20,
-    "Clientes": 0.15,
-    "Tecnología": 0.10
+    "Estrategia y Liderazgo": 0.30,
+    "Personas y Cultura": 0.25,
+    "Operaciones y Procesos": 0.20,
+    "Clientes y Productos": 0.15,
+    "Tecnología e Infraestructura": 0.10
 }
 
-# --- CUESTIONARIO CON RÚBRICAS ---
+# --- CUESTIONARIO ---
 st.write("---")
-st.subheader("1. Estrategia y Liderazgo (Peso: 30%)")
-p1 = st.radio("¿Dispone la empresa de una hoja de ruta digital?", 
-              ["1. No, actuamos según surgen problemas.", 
-               "2. Tenemos algunas ideas, pero no escritas.",
-               "3. Existe un plan básico anual.",
-               "4. Hay un plan estratégico definido y con presupuesto.",
-               "5. La estrategia digital lidera el modelo de negocio."], index=0)
+col1, col2 = st.columns(2)
 
-st.subheader("2. Personas y Cultura (Peso: 25%)")
-p2 = st.radio("¿Cuál es el nivel de competencias digitales de la plantilla?",
-              ["1. Muy bajo (uso básico de email/móvil).",
-               "2. Habilidades básicas de ofimática.",
-               "3. Habilidades técnicas específicas del puesto.",
-               "4. Personal capacitado y en formación continua.",
-               "5. Talento digital avanzado (programación, análisis datos)."], index=0)
+with col1:
+    st.subheader("1. Estrategia (30%)")
+    p1 = st.select_slider("Nivel de Estrategia Digital", options=["1. Inexistente", "2. Ideas sueltas", "3. Plan Básico", "4. Plan Definido", "5. Liderazgo Digital"], value="1. Inexistente")
+    
+    st.subheader("2. Personas (25%)")
+    p2 = st.select_slider("Competencias Digitales", options=["1. Nulas", "2. Básicas (Email)", "3. Técnicas", "4. Avanzadas", "5. Expertas"], value="1. Nulas")
+    
+    st.subheader("3. Operaciones (20%)")
+    p3 = st.select_slider("Digitalización de Procesos", options=["1. Papel", "2. Excel aislado", "3. Software Básico", "4. Integrado (ERP)", "5. Automatizado"], value="1. Papel")
 
-st.subheader("3. Operaciones y Procesos (Peso: 20%)")
-p3 = st.radio("¿Nivel de integración de sistemas (ERP, producción)?",
-              ["1. Gestión en papel o Excel disperso.",
-               "2. Software contable/facturación aislado.",
-               "3. ERP básico implementado.",
-               "4. Sistemas integrados (Ventas conectados con Stock).",
-               "5. Automatización total y datos en tiempo real."], index=0)
+with col2:
+    st.subheader("4. Clientes (15%)")
+    p4 = st.select_slider("Canales Digitales", options=["1. Ninguno", "2. Web estática", "3. Web/RRSS activas", "4. E-commerce", "5. Omnicanalidad"], value="1. Ninguno")
 
-st.subheader("4. Clientes y Productos (Peso: 15%)")
-p4 = st.radio("¿Cómo interactúa digitalmente con el cliente?",
-              ["1. No hay interacción digital (solo física/teléfono).",
-               "2. Presencia web estática o RRSS básicas.",
-               "3. Canal de comunicación activo y captación.",
-               "4. Venta online o CRM integrado.",
-               "5. Servicios digitales personalizados y servitización."], index=0)
+    st.subheader("5. Tecnología (10%)")
+    p5 = st.select_slider("Infraestructura TI", options=["1. Obsoleta", "2. Básica", "3. Moderna Local", "4. Cloud/Nube", "5. IoT/IA"], value="1. Obsoleta")
 
-st.subheader("5. Tecnología e Infraestructura (Peso: 10%)")
-p5 = st.radio("¿Infraestructura y Ciberseguridad?",
-              ["1. Ordenadores domésticos sin seguridad específica.",
-               "2. Antivirus básico y copias manuales.",
-               "3. Servidor local y copias en nube.",
-               "4. Infraestructura Cloud y seguridad perimetral.",
-               "5. IoT, Gemelos Digitales y Ciberseguridad avanzada."], index=0)
-
-# --- MAPEO DE RESPUESTAS A NÚMEROS ---
-def map_score(opcion):
-    return int(opcion.split(".")[0])
-
+# Mapeo simple de la opción elegida al número (el primer carácter)
 scores = {
-    "Estrategia": map_score(p1),
-    "Cultura": map_score(p2),
-    "Operaciones": map_score(p3),
-    "Clientes": map_score(p4),
-    "Tecnología": map_score(p5)
+    "Estrategia y Liderazgo": int(p1[0]),
+    "Personas y Cultura": int(p2[0]),
+    "Operaciones y Procesos": int(p3[0]),
+    "Clientes y Productos": int(p4[0]),
+    "Tecnología e Infraestructura": int(p5[0])
 }
 
-# --- BOTÓN DE PROCESAMIENTO ---
-if st.button("🔍 ANALIZAR MADUREZ Y GENERAR HOJA DE RUTA", type="primary"):
+# --- BOTÓN DE ACCIÓN ---
+if st.button("🚀 ANALIZAR CON INTELIGENCIA ARTIFICIAL", type="primary"):
     
-    # 1. Cálculo AHP
+    # Cálculo AHP
     nmg = sum(scores[dim] * peso for dim, peso in PESOS.items())
     
-    # 2. Identificar Puntos Fuertes y Débiles
+    # Lógica DAFO
     fortaleza = max(scores, key=scores.get)
     debilidad = min(scores, key=scores.get)
     
-    # 3. Generar Recomendaciones (IA o Experto)
-    with st.spinner("Consultando con el Motor de Inteligencia Artificial..."):
-        recomendaciones = generar_recomendaciones_ia(api_key, sector, tamano, debilidad, fortaleza, nmg)
-
-    # --- MOSTRAR RESULTADOS ---
-    st.write("---")
-    col_kpi, col_chart = st.columns([1, 1])
+    # Generar Informe IA
+    with st.spinner("🤖 La IA está analizando tus respuestas y calculando predicciones..."):
+        informe_ia = generar_analisis_ia(sector, tamano, debilidad, fortaleza, nmg)
     
-    with col_kpi:
-        st.markdown(f"### Nivel Global: **{nmg:.2f} / 5.0**")
-        st.progress(nmg / 5)
-        
-        if nmg < 2:
-            st.error("Estado: INICIAL. Urge digitalización básica.")
-        elif nmg < 3.5:
-            st.warning("Estado: EN TRANSICIÓN. Necesita integración.")
-        else:
-            st.success("Estado: AVANZADO. Foco en innovación.")
-
-        st.markdown(f"""
-        - 🟢 **Punto Fuerte:** {fortaleza} (Nivel {scores[fortaleza]})
-        - 🔴 **Punto Crítico:** {debilidad} (Nivel {scores[debilidad]})
-        """)
+    # Mostrar KPIs
+    st.divider()
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Nivel de Madurez", f"{nmg:.2f}/5.0")
+    c2.metric("Punto Fuerte", fortaleza)
+    c3.metric("Punto Débil", debilidad, delta="-Crítico", delta_color="inverse")
     
-    with col_chart:
-        # Gráfico Radar
-        fig = go.Figure(data=go.Scatterpolar(
-            r=list(scores.values()),
-            theta=list(scores.keys()),
-            fill='toself',
-            name='Tu Empresa'
-        ))
-        fig.update_layout(
-            polar=dict(radialaxis=dict(visible=True, range=[0, 5])),
-            margin=dict(t=20, b=20, l=20, r=20)
-        )
-        st.plotly_chart(fig, use_container_width=True)
+    # Gráfico Radar
+    fig = go.Figure(data=go.Scatterpolar(
+        r=list(scores.values()),
+        theta=list(scores.keys()),
+        fill='toself',
+        name=nombre_empresa
+    ))
+    fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 5])))
+    st.plotly_chart(fig, use_container_width=True)
     
-    # --- MOSTRAR HOJA DE RUTA ---
-    st.subheader("🚀 Hoja de Ruta Personalizada")
-    st.info(recomendaciones)
+    # Mostrar Informe IA
+    st.subheader("📋 Informe Estratégico y Predictivo")
+    st.markdown(informe_ia)
     
-    # --- DESCARGAR PDF ---
-    pdf_bytes = crear_pdf(nombre_empresa, nmg, fortaleza, debilidad, recomendaciones, None)
+    # Botón PDF
+    pdf_bytes = crear_pdf(nombre_empresa, nmg, fortaleza, debilidad, informe_ia)
     b64 = base64.b64encode(pdf_bytes).decode()
-    href = f'<a href="data:application/octet-stream;base64,{b64}" download="Informe_Madurez_{nombre_empresa}.pdf">📥 DESCARGAR INFORME EN PDF</a>'
+    href = f'<a href="data:application/octet-stream;base64,{b64}" download="Informe_Digital_{nombre_empresa}.pdf" style="text-decoration:none; color:white; background-color:red; padding:10px; border-radius:5px;">📄 DESCARGAR PDF</a>'
     st.markdown(href, unsafe_allow_html=True)
+
 
