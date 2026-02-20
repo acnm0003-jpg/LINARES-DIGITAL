@@ -17,12 +17,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. CONFIGURACIÓN TÉCNICA (IA) EN BARRA LATERAL ---
+# --- 2. CONFIGURACIÓN TÉCNICA (IA) ---
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/2621/2621051.png", width=50)
     st.header("⚙️ Configuración")
     
-    # --- AUTO-DETECCIÓN DE MODELOS ---
     api_key = st.secrets.get("GOOGLE_API_KEY", None)
     modelo_seleccionado = None
     
@@ -31,16 +30,20 @@ with st.sidebar:
     else:
         try:
             genai.configure(api_key=api_key)
-            # Buscamos modelos compatibles con texto
             modelos_disponibles = []
             for m in genai.list_models():
                 if 'generateContent' in m.supported_generation_methods:
                     modelos_disponibles.append(m.name)
             
             if modelos_disponibles:
-                st.success(f"✅ Conectado: {len(modelos_disponibles)} modelos.")
-                # El usuario elige el modelo que quiera (ej. gemini-1.5-flash)
-                modelo_seleccionado = st.selectbox("Selecciona Modelo IA:", modelos_disponibles, index=0)
+                st.success(f"✅ Conectado")
+                # Intentamos seleccionar gemini-1.5-flash por defecto si existe (es más rápido y mejor para instrucciones largas)
+                default_index = 0
+                for i, m in enumerate(modelos_disponibles):
+                    if "gemini-1.5" in m:
+                        default_index = i
+                        break
+                modelo_seleccionado = st.selectbox("Modelo IA:", modelos_disponibles, index=default_index)
             else:
                 st.warning("⚠️ Clave válida pero no se encuentran modelos.")
         except Exception as e:
@@ -49,28 +52,28 @@ with st.sidebar:
     st.divider()
     st.header("Datos Empresa")
     nombre_empresa = st.text_input("Nombre Comercial", "Mi Empresa S.L.")
-    sector = st.selectbox("Sector", ["Industria Metalmecánica", "Automoción", "Comercio", "Servicios", "Agroalimentario"])
-    tamano = st.selectbox("Tamaño", ["Micro (<10 empl.)", "Pequeña (10-49)", "Mediana (50-250)"])
+    sector = st.selectbox("Sector", ["Industria Metalmecánica", "Automoción/Auxiliar", "Comercio Minorista", "Hostelería", "Servicios Profesionales", "Agroalimentario"])
+    tamano = st.selectbox("Tamaño", ["Microempresa (1-9 empl.)", "Pequeña (10-49 empl.)", "Mediana (50-250 empl.)"])
 
-# --- 3. DEFINICIÓN DEL CUESTIONARIO (BASE CIENTÍFICA) ---
+# --- 3. CUESTIONARIO (BASE CIENTÍFICA) ---
 CUESTIONARIO = {
     "Estrategia y Liderazgo": [
-        ("1. Visión Digital", ["1. Inexistente", "2. Ideas sueltas", "3. Metas claras", "4. Plan estratégico", "5. Innovación core"]),
-        ("2. Liderazgo", ["1. Pasivo", "2. Apoyo puntual", "3. Presupuesto asignado", "4. Liderazgo activo", "5. Cultura de riesgo"]),
+        ("1. Visión Digital", ["1. Inexistente (Día a día)", "2. Ideas sueltas", "3. Metas claras", "4. Plan estratégico", "5. Innovación core"]),
+        ("2. Liderazgo", ["1. Pasivo/Delegado", "2. Apoyo puntual", "3. Presupuesto asignado", "4. Liderazgo activo", "5. Cultura de riesgo"]),
         ("3. KPIs", ["1. Sin medición", "2. Esporádica", "3. KPIs básicos", "4. Dashboards", "5. Data-Driven"])
     ],
     "Clientes y Marketing": [
-        ("4. Presencia Online", ["1. Nula", "2. Básica", "3. Activa", "4. Móvil/Omnicanal", "5. Experiencia total"]),
-        ("5. Venta Online", ["1. No vende", "2. Terceros", "3. Propia básica", "4. Integrada stock", "5. Analítica avanzada"]),
-        ("6. CRM", ["1. Papel/Excel", "2. BBDD básica", "3. Software CRM", "4. Integrado ventas", "5. Predicción IA"])
+        ("4. Presencia Online", ["1. Nula", "2. Básica (Directorio)", "3. Activa (Web/Redes)", "4. Omnicanal", "5. Experiencia total"]),
+        ("5. Venta Online", ["1. No vende", "2. Terceros (Marketplace)", "3. Propia básica", "4. Integrada stock", "5. Analítica avanzada"]),
+        ("6. CRM", ["1. Papel/Agenda", "2. Excel/BBDD básica", "3. Software CRM", "4. Integrado ventas", "5. Predicción IA"])
     ],
     "Operaciones y Procesos": [
-        ("7. Administración", ["1. Manual", "2. Software aislado", "3. ERP Integrado", "4. Cloud/Auto", "5. Tiempo real"]),
+        ("7. Administración", ["1. Manual/Papel", "2. Software aislado", "3. ERP Integrado", "4. Cloud/Auto", "5. Tiempo real"]),
         ("8. Producción/Ops", ["1. Manual", "2. Herramientas aisladas", "3. Digital parcial", "4. Conectado", "5. IoT/Sensores"])
     ],
     "Tecnología e Infraestructura": [
         ("9. Hardware/Red", ["1. Obsoleto", "2. Funcional", "3. Inversión regular", "4. Cloud seguro", "5. Puntero"]),
-        ("10. Ciberseguridad", ["1. Nada", "2. Copias", "3. Firewall/Claves", "4. Protocolos", "5. Auditorías"])
+        ("10. Ciberseguridad", ["1. Nada/Básico", "2. Copias", "3. Firewall/Claves", "4. Protocolos", "5. Auditorías"])
     ],
     "Personas y Cultura": [
         ("11. Habilidades", ["1. Resistencia", "2. Básicas", "3. Formación puntual", "4. Plan continuo", "5. Talento digital"]),
@@ -86,35 +89,38 @@ PESOS_DIMENSIONES = {
     "Tecnología e Infraestructura": 0.10
 }
 
-# --- 4. FUNCIÓN IA PREDICTIVA ---
+# --- 4. FUNCIÓN IA SUPER-DETALLADA ---
 def generar_analisis_ia(modelo, sector, tamano, debilidad, fortaleza, nmg, detalles):
     try:
-        # Usamos el modelo que el usuario ha seleccionado en la barra lateral
         ai_model = genai.GenerativeModel(modelo)
             
+        # AQUÍ ESTÁ LA CLAVE: UN PROMPT MUY ESPECÍFICO
         prompt = f"""
-        Actúa como un Consultor Estratégico de Industria 4.0.
-        Analiza esta empresa de Linares (España):
-        - Sector: {sector} | Tamaño: {tamano}
-        - Madurez Global: {nmg:.2f}/5.0
-        - Fortaleza: {fortaleza} | Debilidad: {debilidad}
-        - Detalle Puntuaciones: {detalles}
+        Actúa como un Mentor de Negocios Digitales especializado en PYMEs de Linares (Jaén).
+        Tu cliente es una empresa real con este perfil:
+        - Sector: {sector}. Tamaño: {tamano}.
+        - Nivel de Madurez: {nmg:.2f}/5.0.
+        - Su mayor problema es: {debilidad}.
+        - Su punto fuerte es: {fortaleza}.
+        - Detalle de puntuaciones: {detalles}
 
-        Genera un informe estratégico (máximo 300 palabras) con estas 3 secciones obligatorias:
+        Tu objetivo es darle un MANUAL DE INSTRUCCIONES PRÁCTICO. No uses jerga corporativa abstracta. Dime CÓMO hacerlo paso a paso.
 
-        1. 🔮 PREDICCIÓN DE IMPACTO (Riesgo vs Oportunidad):
-           - Qué pasará en 12 meses si NO mejoran en '{debilidad}' (riesgo operativo/financiero).
-           - Qué beneficio tangible (estimado en % o eficiencia) obtendrán si suben 1 punto en esa dimensión.
+        Genera el informe con estas 3 secciones exactas:
 
-        2. 🚀 HOJA DE RUTA TÁCTICA (3 Pasos):
-           - Paso 1 (Inmediato/Gratis): Acción concreta para empezar mañana.
-           - Paso 2 (Inversión Baja): Herramienta o cambio recomendado a 3 meses.
-           - Paso 3 (Transformación): Objetivo a 1 año.
+        ### 1. 🔮 LA REALIDAD ECONÓMICA (Causa-Efecto)
+        Explica, con un ejemplo cotidiano de su sector, qué dinero o eficiencia están perdiendo hoy por culpa de su debilidad en '{debilidad}'. Sé crudo y realista.
 
-        3. 💡 VENTAJA COMPETITIVA:
-           - Cómo apalancar su fortaleza en '{fortaleza}' para ganar mercado local.
+        ### 2. 🛠️ PLAN DE ACCIÓN PASO A PASO (Para solucionar '{debilidad}')
+        Desglosa la solución en pasos masticados. No digas "Implementar un CRM". Di: "Paso 1: Abre esta web. Paso 2: Sube esto."
+        - **Acción Inmediata (Coste 0€, para hacer mañana):** Explica qué herramienta gratuita usar y cómo configurarla en la primera hora.
+        - **Acción a Corto Plazo (1-3 meses):** Qué proceso cambiar y cómo involucrar al equipo.
+        - **Acción de Inversión (Solo si es necesaria):** Qué tecnología comprar, cuánto suele costar aprox y qué retorno dará.
 
-        Usa un tono profesional pero directo.
+        ### 3. 💡 TU VENTAJA OCULTA
+        Explica cómo usar su fortaleza en '{fortaleza}' para que la competencia no pueda copiarles. Dame una idea de marketing o proceso concreta.
+
+        Escribe en español directo, usando listas y negritas para facilitar la lectura.
         """
         
         response = ai_model.generate_content(prompt)
@@ -127,99 +133,90 @@ def crear_pdf(nombre, sector, nmg, informe_ia, scores):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, f"Diagnostico Digital: {nombre}", ln=True, align='C')
+    pdf.cell(0, 10, f"Diagnostico: {nombre}", ln=True, align='C')
     pdf.set_font("Arial", 'I', 10)
     pdf.cell(0, 10, f"Sector: {sector} | Fecha: {date.today()}", ln=True, align='C')
     pdf.ln(5)
     
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, "Resultados del Diagnóstico:", ln=True)
+    pdf.cell(0, 10, "Puntuaciones:", ln=True)
     pdf.set_font("Arial", '', 10)
-    pdf.cell(0, 8, f"Nivel Global: {nmg:.2f} / 5.0", ln=True)
     for dim, score in scores.items():
         pdf.cell(0, 6, f"- {dim}: {score:.2f}", ln=True)
     pdf.ln(5)
     
     pdf.set_font("Arial", '', 11)
+    # Reemplazo de caracteres para evitar errores en PDF básicos
     texto = informe_ia.replace("*", "").replace("#", "").encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 6, texto)
     return pdf.output(dest='S').encode('latin-1')
 
-# --- 6. INTERFAZ: CUESTIONARIO ---
+# --- 6. INTERFAZ ---
 st.title("🏭 Diagnóstico Linares-Digital")
-st.markdown("Responda a las 12 preguntas clave para obtener su hoja de ruta predictiva.")
+st.markdown("Auditoría de madurez digital y hoja de ruta paso a paso.")
 
 user_scores = {}
 tabs = st.tabs(list(CUESTIONARIO.keys()))
 
 for i, (dim_name, preguntas) in enumerate(CUESTIONARIO.items()):
     with tabs[i]:
-        st.header(f"{dim_name}")
+        st.subheader(f"{dim_name}")
         puntajes = []
         for preg, opciones in preguntas:
             sel = st.radio(f"**{preg}**", options=opciones, key=preg)
-            puntajes.append(int(sel[0])) # Extrae el número (1..5)
+            puntajes.append(int(sel[0])) 
         user_scores[dim_name] = np.mean(puntajes)
 
-# --- 7. BOTÓN DE CÁLCULO ---
 st.write("---")
 
-if st.button("🚀 GENERAR DIAGNÓSTICO PREDICTIVO", type="primary", use_container_width=True):
+if st.button("🚀 OBTENER PLAN DE ACCIÓN DETALLADO", type="primary", use_container_width=True):
     
-    # 1. Cálculo AHP
+    # Cálculo
     nmg = 0
     for dim, score in user_scores.items():
         nmg += score * PESOS_DIMENSIONES[dim]
-        
-    # 2. DAFO
+    
     fortaleza = max(user_scores, key=user_scores.get)
     debilidad = min(user_scores, key=user_scores.get)
     
-    # 3. Consulta a IA (Usando el modelo seleccionado en la barra lateral)
+    # IA
     if modelo_seleccionado:
-        with st.spinner(f"🧠 Consultando a {modelo_seleccionado} para generar predicciones..."):
+        with st.spinner("🤖 El consultor virtual está redactando tu plan paso a paso..."):
             detalles_texto = ", ".join([f"{k}: {v:.1f}" for k,v in user_scores.items()])
             informe = generar_analisis_ia(modelo_seleccionado, sector, tamano, debilidad, fortaleza, nmg, detalles_texto)
     else:
-        informe = "⚠️ No se ha podido conectar con la IA. Revise la API Key."
+        informe = "⚠️ Error: No hay conexión con la IA."
 
-    # --- RESULTADOS ---
+    # Resultados
     st.divider()
     c1, c2 = st.columns([1, 2])
-    
     with c1:
-        st.metric("Nivel de Madurez Global", f"{nmg:.2f} / 5.0")
+        st.metric("Nivel Madurez", f"{nmg:.2f}/5.0")
+        st.success(f"Fortaleza: {fortaleza}")
+        st.error(f"Prioridad: {debilidad}")
         
-        # Gauge Chart
         fig_gauge = go.Figure(go.Indicator(
             mode = "gauge+number", value = nmg,
             domain = {'x': [0, 1], 'y': [0, 1]},
-            gauge = {'axis': {'range': [0, 5]}, 'bar': {'color': "#3498DB"},
-                     'steps': [{'range': [0, 2], 'color': "#ffcdd2"}, {'range': [2, 3.5], 'color': "#fff9c4"}, {'range': [3.5, 5], 'color': "#c8e6c9"}]}
+            gauge = {'axis': {'range': [0, 5]}, 'bar': {'color': "#2E86C1"},
+                     'steps': [{'range': [0, 2], 'color': "#FFCDD2"}, {'range': [2, 3.5], 'color': "#FFF9C4"}, {'range': [3.5, 5], 'color': "#C8E6C9"}]}
         ))
-        fig_gauge.update_layout(height=250, margin=dict(t=0,b=0,l=0,r=0))
+        fig_gauge.update_layout(height=200, margin=dict(t=0,b=0,l=0,r=0))
         st.plotly_chart(fig_gauge, use_container_width=True)
-        
-        st.info(f"**Fortaleza:** {fortaleza}")
-        st.error(f"**Debilidad:** {debilidad}")
 
     with c2:
-        # Radar Chart
         fig_radar = go.Figure(data=go.Scatterpolar(
             r=list(user_scores.values()), theta=list(user_scores.keys()), fill='toself', name='Tu Empresa'
         ))
-        fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 5])), title="Mapa de Competitividad")
+        fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 5])), title="Radar de Competitividad")
         st.plotly_chart(fig_radar, use_container_width=True)
 
-    # Informe IA
-    st.subheader("🤖 Informe Estratégico (IA)")
+    st.subheader("📋 Tu Plan de Acción Paso a Paso")
     st.markdown(informe)
     
-    # PDF
     try:
         pdf_bytes = crear_pdf(nombre_empresa, sector, nmg, informe, user_scores)
         b64 = base64.b64encode(pdf_bytes).decode()
-        st.markdown(f'<div style="text-align:center"><a href="data:application/octet-stream;base64,{b64}" download="Informe_{nombre_empresa}.pdf" style="background-color:#E74C3C; color:white; padding:15px; text-decoration:none; border-radius:5px;">📄 DESCARGAR PDF</a></div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="text-align:center"><a href="data:application/octet-stream;base64,{b64}" download="Plan_Accion_{nombre_empresa}.pdf" style="background-color:#E74C3C; color:white; padding:15px; text-decoration:none; border-radius:5px; font-weight:bold;">📥 DESCARGAR INFORME COMPLETO</a></div>', unsafe_allow_html=True)
     except:
-        st.warning("No se pudo generar el PDF (Error de caracteres).")
-
+        st.warning("No se pudo generar el PDF.")
